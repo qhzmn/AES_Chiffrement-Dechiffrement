@@ -6,14 +6,13 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding
-from cryptography.hazmat.primitives import hashes
 
 # Fonction pour dériver une clé AES à partir d'un mot de passe et d'un sel
 def password_to_aes_value(password: str, sel: bytes) -> bytes:
     kdf = PBKDF2HMAC(
     algorithm=hashes.SHA256(),  # Utilise SHA256 pour le calcul HMAC
-    taille=32,  # Longueur de la clé dérivée (32 octets pour AES-256)
-    sel=sel,  # Sel utilisé pour dériver la clé
+    length=32,  # Longueur de la clé dérivée (32 octets pour AES-256)
+    salt=sel,  # Sel utilisé pour dériver la clé
     iterations=100000,  # Nombre d'itérations pour augmenter la sécurité
     backend=default_backend()  # Backend cryptographique par défaut
     )
@@ -54,6 +53,10 @@ def dechiffre_fichier(input_filename, output_filename, password):
 # Chiffrement d'un fichier
 def chiffre_fichier(input_filename, output_filename, password):
     try:
+        if not os.path.exists(input_filename):
+            print("Fichier introuvable!")
+            return
+
         sel = os.urandom(32)  # Sel aléatoire de 32 octets
         value = password_to_aes_value(password, sel) # Dériver la clé avec le mot de passe et le sel
 
@@ -64,7 +67,7 @@ def chiffre_fichier(input_filename, output_filename, password):
         with open(input_filename, 'rb') as file:
             file_data = file.read()
 
-        # Appliquer le padding pour que la taille des données soit un multiple de 16
+        # Appliquer le padding pour que la length des données soit un multiple de 16
         padder = padding.PKCS7(128).padder()
         padded_data = padder.update(file_data) + padder.finalize()
 
@@ -106,58 +109,67 @@ def edit_config(value, valeur, file_name="C:/Users/quent/OneDrive/Documents/pers
         config['settings'][value] = valeur # Mettre à jour la valeur pour la clé spécifiée
         with open(file_name, 'w') as f:
             config.write(f) # Sauvegarder les modifications dans le fichier
-        print("Configuration mise à jour avec succès.")
+        print("-----Configuration MàJ : succès_!-----")
     except Exception as e:
-        print(f"Erreur lors de la mise à jour de la configuration : {e}")
+        print(f"---Erreur lors de la mise à jour de la configuration--- : {e}")
 
 
 # Fonction pour gérer les entrées utilisateur dans le menu de configuration
 def config():
-    print("1. Nom de fichier")
+    print("\n1. Nom de fichier")
     print("2. Chemin")
     print("3. Mot de passe (modification)")
     value = input("Choisissez une option : ").strip()
     if value not in ['1', '2', '3']:
         print("Option invalide!")
         return
-    valeur = input("Entrez la valeur : ").strip()
+    
     if value == '1':
+        valeur = input("Entrez la valeur : ").strip()
         edit_config('nom_fichier', valeur)
         return valeur
     elif value == '2':
+        valeur = input("Entrez la valeur : ").strip()
         edit_config('chemin', valeur)
     elif value == '3':
-        return valeur
+        return getpass.getpass("Entrez le mot de passe : ")
 
-
+def fichier_existe(nom_fichier, chemin):
+    chemin_complet = os.path.join(chemin, nom_fichier)
+    if os.path.isfile(chemin_complet):
+        return True
+    print("-----Fichier non trouvé_!-----")
+    return False
 # Fonction principale
 def main():
     password = None
     while True:
         try:
             chemin = read_config('chemin') or os.getcwd()
-            nom_fichier = read_config('nom_fichier') or config()
+            while not read_config('nom_fichier'):
+                print("---Erreur nom fichier---")
+                config()
+            nom_fichier = read_config('nom_fichier')
             print("\n1. Chiffrer un fichier")
             print("2. Déchiffrer un fichier")
             print("3. Modifier la configuration")
             print("4. Quitter")
             choice = input("Choisissez une option : ").strip()
-            if choice == '1':
+            
+            if choice == '1' and fichier_existe(nom_fichier, chemin):
                 if password is None:
                     password = getpass.getpass("Entrez le mot de passe : ")
                 chiffre_fichier(os.path.join(chemin, nom_fichier), os.path.join(chemin, nom_fichier), password)
-            elif choice == '2':
+            elif choice == '2' and fichier_existe(nom_fichier, chemin):
                 password = getpass.getpass("Entrez le mot de passe : ")
                 decrypted_content = dechiffre_fichier(os.path.join(chemin, nom_fichier), os.path.join(chemin, nom_fichier), password)
             elif choice == '3':
-                config()
+                password=config()
             elif choice == '4':
-                print("Au revoir!")
                 break
-            else:
-                print("Choix invalide. Essayez à nouveau.")
+            
         except Exception as e:
-            print(f"Erreur dans le processus principal : {e}")
+            print(f"---Erreur dans le processus principal--- : {e}")
 
 
 # Lancement du programme
